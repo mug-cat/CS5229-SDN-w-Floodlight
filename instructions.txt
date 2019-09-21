@@ -1,0 +1,18 @@
+sudo ~/CS5229/NAT_Topology.py
+
+xterm client1 client2 server
+
+python setupRoute.py <client1/client2/server>
+
+cd ~/CS5229/floodlight-1.2
+java -Dlogback.configurationFile=logback.xml -jar target/floodlight.jar
+
+curl http://localhost:8080/wm/core/switch/all/flow/json | python -m json.tool
+
+curl http://localhost:8080/wm/staticflowpusher/list/1/json | python -m json.tool
+
+iperf3 -c <ip> -p <port> -u
+iperf3 -s -p <port>
+
+localhost:8080/ui/index.html
+
