@@ -18,6 +18,7 @@ import org.projectfloodlight.openflow.protocol.*;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.security.cert.PKIXRevocationChecker.Option;
 import java.util.*;
 import net.floodlightcontroller.core.IFloodlightProviderService;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -34,6 +35,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 
 /**
  * Created by pravein on 28/9/17.
@@ -54,7 +57,7 @@ public class NAT implements IOFMessageListener, IFloodlightModule {
     HashMap<String, String> IPMacMap = new HashMap<>();
     HashMap<OFPort, String> routerPortMacMap = new HashMap<>();
 
-    private short ICMPIDCounter = 1;
+    private int ICMPIDCounter = 1;
 
     NATTable NATTble = new NATTable();
 
@@ -77,19 +80,41 @@ public class NAT implements IOFMessageListener, IFloodlightModule {
         // assume ipv4 and mac are in strings since it's human readable
         // a twisted NAT because this assignment only requires NAT for ICMP which does
         // not involve port number.
-        private HashMap<Pair<String, Short>, Pair<String, Short>> mappings;
-
+        private HashMap<Pair<String, Short>, Pair<Pair<String, Short>, Instant>> mappings;
+        
         public NATTable() {
-            mappings = new HashMap<Pair<String, Short>, Pair<String, Short>>();
+            mappings = new HashMap<Pair<String, Short>, Pair<Pair<String, Short>, Instant>>();
+
         }
 
         public void createEntry(Pair<String, Short> key, Pair<String, Short> value) {
-            mappings.put(key, value);
-            mappings.put(value, key);
+            Instant instant = Instant.now();
+            mappings.put(key, Pair.create(value, instant));
+            mappings.put(value, Pair.create(key, instant));
         }
 
         public Optional<Pair<String, Short>> seekEntry(Pair<String, Short> key) {
-            return Optional.ofNullable(mappings.get(key));
+
+            Pair<Pair<String, Short>, Instant> mappedValue = mappings.get(key);
+            if (mappedValue == null){
+                return Optional.empty();
+            }
+
+            Pair<String, Short> value = mappedValue.getFirst();
+
+            Instant instant = Instant.now();
+            int duration = (int) Duration.between(mappedValue.getSecond(), instant).getSeconds();
+            if (duration > 60){
+                // timed out
+                mappings.remove(key);
+                mappings.remove(value);
+                return Optional.empty();
+            } else{
+                // refresh time
+                mappings.put(key, Pair.create(value, instant));
+                mappings.put(value, Pair.create(key, instant));
+                return Optional.of(value);
+            }
         }
     }
 
@@ -124,7 +149,7 @@ public class NAT implements IOFMessageListener, IFloodlightModule {
 
         public ICMPEcho clone() {
             ICMPEcho pkt = new ICMPEcho();
-            // TODO: we are using serialize()/deserialize() to perform the 
+            // we are using serialize()/deserialize() to perform the 
             // cloning. Not the most efficient way but simple. We can revisit
             // if we hit performance problems.
             byte[] data = this.serialize();
@@ -323,6 +348,7 @@ public class NAT implements IOFMessageListener, IFloodlightModule {
     
             // NAT mapping
             Optional<Pair<String, Short>> optMatchingEntry = NATTble.seekEntry(IPICMPPairToMatch);
+            // check presence and timeout
             if (optMatchingEntry.isPresent()){
                 Pair<String, Short> matchingEntry = optMatchingEntry.get();
                 // system.out.printf("Matching in NAT table found, mapped to IP: %s, ID: %d\n", matchingEntry.getFirst(), matchingEntry.getSecond());
@@ -342,7 +368,8 @@ public class NAT implements IOFMessageListener, IFloodlightModule {
                 outgoingMac = routerPortMacMap.get(outgoingPort);
                 // source IP after translation
                 outgoingIP = routerMacIPMap.get(outgoingMac);
-                outgoingICMPID = ICMPIDCounter++;
+                ICMPIDCounter = (ICMPIDCounter+1)%Short.MAX_VALUE;
+                outgoingICMPID = (short) ICMPIDCounter;
                 NATTble.createEntry(IPICMPPairToMatch, Pair.create(outgoingIP, outgoingICMPID));
                 // IP ttl decreases
                 newTtl = ipPkt.getTtl();
@@ -350,7 +377,7 @@ public class NAT implements IOFMessageListener, IFloodlightModule {
                 //// system.out.printf(
                 //    "Outgoing Port %d, outgoing Mac %s, outgoing IP %s, outgoing ICMP ID %d, outgoing IP TTL %d\n"
                 //    , outgoingPort.getPortNumber(), outgoingMac, outgoingIP, outgoingICMPID, newTtl
-                //);                
+                //);              
             }           
 
             IPacket icmpForwardPkt = new Ethernet()
