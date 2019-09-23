@@ -1,45 +1,31 @@
 package net.floodlightcontroller.natcs5229;
 
 import net.floodlightcontroller.core.FloodlightContext;
-import net.floodlightcontroller.core.IListener;
 import net.floodlightcontroller.core.IOFMessageListener;
 import net.floodlightcontroller.core.IOFSwitch;
 import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
 import net.floodlightcontroller.core.module.IFloodlightService;
-import net.floodlightcontroller.core.util.AppCookie;
 import net.floodlightcontroller.packet.*;
-import net.floodlightcontroller.routing.IRoutingDecision;
-import net.floodlightcontroller.routing.Route;
-import net.floodlightcontroller.util.FlowModUtils;
-import org.kohsuke.args4j.CmdLineException;
 import org.projectfloodlight.openflow.protocol.*;
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.security.cert.PKIXRevocationChecker.Option;
 import java.util.*;
 import net.floodlightcontroller.core.IFloodlightProviderService;
 import java.util.concurrent.ConcurrentSkipListSet;
 
-import com.kenai.jaffl.struct.Struct.Unsigned16;
-
 import org.projectfloodlight.openflow.protocol.action.OFAction;
-import org.projectfloodlight.openflow.protocol.match.Match;
 import org.projectfloodlight.openflow.protocol.match.MatchField;
 import org.projectfloodlight.openflow.types.*;
-import org.python.modules._hashlib;
 import org.sdnplatform.sync.internal.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 
 /**
- * Created by pravein on 28/9/17.
+ * Completed by Liu Renxing on 23/09/19
  */
 public class NAT implements IOFMessageListener, IFloodlightModule {
 
